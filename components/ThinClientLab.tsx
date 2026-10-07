@@ -1,81 +1,1185 @@
 "use client";
-
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { ContactShadows, Environment, OrbitControls, RoundedBox } from "@react-three/drei";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import {
+  ContactShadows,
+  Environment,
+  OrbitControls,
+  RoundedBox,
+  Text,
+} from "@react-three/drei";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import * as THREE from "three";
 import { Expand, Eye, Rotate3D, RotateCcw, ScanSearch, X } from "lucide-react";
-
-type PartKey = "front" | "chassis" | "cooling" | "mainboard" | "processor" | "memory" | "storage" | "rear" | "power";
-type Inspection = { name: string; purpose: string; interfaces: string; relevance: string };
-
-const inspection: Record<PartKey, Inspection> = {
-  front: { name: "Front I/O panel", purpose: "Direct access to USB and audio peripherals for user workstations.", interfaces: "USB Type-A, audio and power control.", relevance: "Keeps essential user connections reachable in managed work areas." },
-  chassis: { name: "Chassis and ventilation", purpose: "Protects internal hardware and supports reliable thermal operation.", interfaces: "Ventilation paths and serviceable enclosure.", relevance: "Designed for dependable continuous deployment." },
-  cooling: { name: "Cooling / ventilation assembly", purpose: "Moves heat away from operating components.", interfaces: "Fan and airflow path.", relevance: "Supports stable operation across long work sessions." },
-  mainboard: { name: "Mainboard", purpose: "Coordinates processor, memory, storage and device connectivity.", interfaces: "Internal expansion and I/O connections.", relevance: "The integration layer for centrally managed environments." },
-  processor: { name: "Processor", purpose: "Runs the operating environment and remote desktop workload.", interfaces: "Processor module.", relevance: "Enables responsive enterprise computing workloads." },
-  memory: { name: "Memory", purpose: "Supports responsive multitasking and virtual desktop sessions.", interfaces: "Memory module interface.", relevance: "Helps maintain a smooth user experience." },
-  storage: { name: "Storage", purpose: "Holds operating system, configurations and local application data where required.", interfaces: "M.2-style storage module.", relevance: "Supports consistent configured endpoints." },
-  rear: { name: "Rear I/O board", purpose: "Connects displays and managed network peripherals.", interfaces: "LAN, VGA, HDMI, USB and audio.", relevance: "Supports office, education, control-room and kiosk deployments." },
-  power: { name: "Power input", purpose: "Supplies regulated power for continuous operation.", interfaces: "DC input assembly.", relevance: "Built for stable installed environments." },
+import * as THREE from "three";
+type K =
+  | "shell"
+  | "front"
+  | "board"
+  | "cpu"
+  | "memory"
+  | "storage"
+  | "rear"
+  | "power"
+  | "cooling"
+  | "stand"
+  | "base"
+  | "display"
+  | "drawer";
+type Product = {
+  id: string;
+  name: string;
+  kind: string;
+  photos: string[];
+  parts: K[];
+  structural?: boolean;
+  copy: string;
+  info: Partial<Record<K, [string, string, string]>>;
 };
-const partOrder: PartKey[] = ["front", "chassis", "cooling", "mainboard", "processor", "memory", "storage", "rear", "power"];
-
-function Port({ position, color = "#111827", size = [0.28, 0.13, 0.03] as [number, number, number] }: { position: [number, number, number]; color?: string; size?: [number, number, number] }) {
-  return <mesh position={position}><boxGeometry args={size}/><meshStandardMaterial color={color} metalness={0.75} roughness={0.3}/></mesh>;
-}
-function Vents({ position, rotation = [0, 0, 0] as [number, number, number] }: { position: [number, number, number]; rotation?: [number, number, number] }) {
-  return <group position={position} rotation={rotation}>{Array.from({ length: 8 }, (_, i) => <mesh key={i} position={[(i - 3.5) * .13, 0, 0]}><boxGeometry args={[.045, .46, .025]}/><meshBasicMaterial color="#070a0d"/></mesh>)}</group>;
-}
-
-function ThinClientModel({ explode, xray, selected, onSelect }: { explode: boolean; xray: boolean; selected: PartKey | null; onSelect: (key: PartKey) => void }) {
-  const refs = useRef<Record<string, THREE.Group | null>>({});
-  const targets = useRef<Record<string, number>>({});
-  useEffect(() => {
-    const layout: Record<PartKey, [number, number, number]> = { front: [-2.4, 0, 0], chassis: [0, .95, 0], cooling: [0, .35, .1], mainboard: [0, 0, 0], processor: [-.35, .65, .35], memory: [.95, .45, .1], storage: [1.35, -.1, .2], rear: [2.3, 0, 0], power: [2.15, -.75, -.1] };
-    partOrder.forEach(key => {
-      const r = refs.current[key]; if (!r) return;
-      const to = explode ? layout[key] : [0, 0, 0];
-      gsap.to(r.position, { x: to[0], y: to[1], z: to[2], duration: .85, ease: "power3.inOut", overwrite: true });
-      gsap.to(r.rotation, { z: explode && key === "front" ? -.08 : 0, duration: .85, ease: "power3.inOut", overwrite: true });
-    });
-  }, [explode]);
-  const material = (key: PartKey, color: string) => <meshStandardMaterial color={color} metalness={.72} roughness={.28} transparent={xray && key === "chassis"} opacity={xray && key === "chassis" ? .18 : 1} emissive={selected === key ? "#0baeff" : "#000000"} emissiveIntensity={selected === key ? .55 : 0}/>;
-  const group = (key: PartKey, children: React.ReactNode) => <group ref={el => { refs.current[key] = el; }} onClick={(e) => { e.stopPropagation(); onSelect(key); }}>{children}</group>;
-  return <group rotation={[0.06, -.65, 0]}>
-    {group("chassis", <><RoundedBox args={[2.25, 3.7, .72]} radius={.12} smoothness={4}>{material("chassis", "#151b20")}</RoundedBox><mesh position={[1.145, 0, 0]}><boxGeometry args={[.04, 3.45, .52]}/>{material("chassis", "#a9dc26")}</mesh><Vents position={[0, 1.15, .38]} rotation={[0, 0, Math.PI / 2]}/><Vents position={[0, -1.12, .38]} rotation={[0, 0, Math.PI / 2]}/></>)}
-    {group("front", <group position={[0, 0, .4]}><RoundedBox args={[1.82, 3.15, .11]} radius={.06} smoothness={3}>{material("front", "#090d10")}</RoundedBox><mesh position={[0, 1.17, .08]}><cylinderGeometry args={[.18, .18, .035, 24]}/><meshStandardMaterial color="#172027" emissive="#9bd60e" emissiveIntensity={.7}/></mesh><Port position={[0, .42, .09]}/><Port position={[0, -.48, .09]}/><mesh position={[0, -.03, .09]}><torusGeometry args={[.1,.025,8,24]}/><meshStandardMaterial color="#b7cfda"/></mesh><mesh position={[0, -.23, .09]}><torusGeometry args={[.1,.025,8,24]}/><meshStandardMaterial color="#e38b9a"/></mesh><mesh position={[0, -1.27, .09]}><planeGeometry args={[.78,.22]}/><meshBasicMaterial color="#eef4f5"/></mesh></group>)}
-    {group("rear", <group position={[0, 0, -.42]} rotation={[0, Math.PI, 0]}><RoundedBox args={[1.8, 3.15, .1]} radius={.05} smoothness={3}>{material("rear", "#090d10")}</RoundedBox><Port position={[-.48, .8, .08]} color="#1778be" size={[.42,.25,.035]}/><Port position={[.44, .82, .08]} color="#174f9c" size={[.36,.25,.035]}/><Port position={[-.42, .3,.08]} color="#114b9b"/><Port position={[.43,.3,.08]} color="#095136"/><Port position={[-.42,-.35,.08]}/><Port position={[.42,-.35,.08]}/><mesh position={[0,-1.03,.08]}><cylinderGeometry args={[.12,.12,.04,20]}/>{material("power", "#101419")}</mesh></group>)}
-    {group("mainboard", <group position={[0,0,.02]}><RoundedBox args={[1.52,2.45,.09]} radius={.06} smoothness={2}>{material("mainboard", "#1c5b3c")}</RoundedBox>{Array.from({length:9},(_,i)=><mesh key={i} position={[-.55+(i%3)*.55,.7-Math.floor(i/3)*.66,.075]}><boxGeometry args={[.27,.22,.06]}/><meshStandardMaterial color="#0c1714" metalness={.4}/></mesh>)}</group>)}
-    {group("cooling", <group position={[-.22,.15,.14]}><mesh rotation={[0,0,Math.PI/4]}><cylinderGeometry args={[.42,.42,.13,4]}/>{material("cooling", "#8d4c26")}</mesh><mesh position={[0,0,.1]}><cylinderGeometry args={[.35,.35,.07,20]}/><meshStandardMaterial color="#111922"/></mesh></group>)}
-    {group("processor", <mesh position={[-.25,.18,.25]}><boxGeometry args={[.52,.52,.12]}/>{material("processor", "#b7a565")}</mesh>)}
-    {group("memory", <mesh position={[.55,.38,.2]} rotation={[0,0,.05]}><boxGeometry args={[.32,1.15,.08]}/>{material("memory", "#267143")}</mesh>)}
-    {group("storage", <mesh position={[.55,-.68,.2]} rotation={[0,0,-.1]}><boxGeometry args={[.27,.95,.07]}/>{material("storage", "#1d6c4b")}</mesh>)}
-    {group("power", <mesh position={[.55,-1.12,.13]}><boxGeometry args={[.48,.38,.18]}/>{material("power", "#111820")}</mesh>)}
-  </group>;
-}
-
-function Scene({ explode, xray, selected, onSelect, resetKey }: { explode: boolean; xray: boolean; selected: PartKey | null; onSelect: (p: PartKey) => void; resetKey: number }) {
-  const orbit = useRef<any>(null); const { gl } = useThree();
-  useEffect(() => { if (orbit.current) { orbit.current.reset(); orbit.current.target.set(0,0,0); orbit.current.update(); } }, [resetKey]);
-  useEffect(() => { gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.6)); }, [gl]);
-  return <><color attach="background" args={["#081017"]}/><fog attach="fog" args={["#081017", 7, 15]}/><ambientLight intensity={.5}/><directionalLight position={[4,5,5]} intensity={1.6} color="#b9e7ff"/><pointLight position={[-4,1,3]} intensity={12} color="#167fd0" distance={8}/><pointLight position={[3,-2,2]} intensity={4} color="#a9dc26" distance={6}/><ThinClientModel explode={explode} xray={xray} selected={selected} onSelect={onSelect}/><gridHelper args={[16,24,"#1c607b","#132733"]} position={[0,-2.25,0]}/><ContactShadows position={[0,-2.22,0]} opacity={.55} scale={7} blur={2.4} far={4}/><OrbitControls ref={orbit} enablePan={false} minDistance={4} maxDistance={8} minPolarAngle={.7} maxPolarAngle={2.25} dampingFactor={.08} enableDamping/><Environment preset="city"/></>;
-}
-
-const photos = ["/codex-clipboard-9a2f571c-34a3-4b7d-aeb1-46c0d4c550b9.png","/codex-clipboard-8005673c-193e-423a-8dae-b92fe630bc3e.png","/codex-clipboard-cf4415c5-3051-4c04-813a-0fa9c93d30a5.png"];
-const deployments = [
-  ["Government and institutional computing","/legacy/thin-clients/1.jpg","Managed endpoints for structured, centrally administered work environments."],
-  ["Lecture hall and conference presentation","/showcase/conference-retail.png","Compact computing and display connectivity for presentation settings."],
-  ["Mobile healthcare workstation","/exploded/mobile-stand.png","A mobile workstation context where compact hardware supports flexible setups."],
-  ["Interactive information kiosk","/showcase/interactive-kiosk.png","Touch-led information access for public and institutional spaces."],
-  ["Desktop and monitor ecosystem","/showcase/complete-system.png","A cohesive desktop, display and peripheral presentation."],
+const products: Product[] = [
+  {
+    id: "thin",
+    name: "Thin Client",
+    kind: "VERTICAL MANAGED ENDPOINT",
+    photos: [
+      "/legacy/thin-clients/1.jpg",
+      "/legacy/thin-clients/2.jpg",
+      "/legacy/thin-clients/3.jpg",
+    ],
+    parts: [
+      "front",
+      "shell",
+      "cooling",
+      "board",
+      "cpu",
+      "memory",
+      "storage",
+      "rear",
+      "power",
+    ],
+    copy: "Tall slim endpoint with green front trim, direct access ports and rear enterprise connectivity.",
+    info: {
+      front: [
+        "Front fascia & green trim",
+        "Direct access to USB and audio peripherals for user workstations.",
+        "Power, USB Type-A, audio",
+      ],
+      shell: [
+        "Slim chassis & ventilation",
+        "Protects hardware and supports reliable thermal operation.",
+        "Side and top ventilation",
+      ],
+      cooling: [
+        "Ventilation channel",
+        "Moves heat away through the vertical enclosure.",
+        "Airflow path",
+      ],
+      board: [
+        "Vertical mainboard",
+        "Coordinates processor, memory, storage and device connectivity.",
+        "Compact vertical board",
+      ],
+      cpu: [
+        "Processor",
+        "Runs the operating environment and remote desktop workload.",
+        "Processor module",
+      ],
+      memory: [
+        "SO-DIMM memory",
+        "Supports responsive multitasking and virtual desktop sessions.",
+        "SO-DIMM",
+      ],
+      storage: [
+        "M.2 storage",
+        "Holds operating system and configurations where required.",
+        "M.2",
+      ],
+      rear: [
+        "Rear I/O board",
+        "Connects office, education, control-room and kiosk deployments.",
+        "LAN, VGA, HDMI, USB, audio",
+      ],
+      power: [
+        "DC power input",
+        "Supplies regulated power for continuous operation.",
+        "DC input",
+      ],
+    },
+  },
+  {
+    id: "mini",
+    name: "Mini PC",
+    kind: "COMPACT DESKTOP COMPUTER",
+    photos: [
+      "/legacy/mini-pc/1.jpg",
+      "/legacy/mini-pc/2.jpg",
+      "/legacy/mini-pc/3.jpg",
+    ],
+    parts: [
+      "shell",
+      "cooling",
+      "board",
+      "cpu",
+      "memory",
+      "storage",
+      "rear",
+      "power",
+    ],
+    copy: "Low rounded Mini PC with a top ventilation grille, front controls and compact I/O.",
+    info: {
+      shell: [
+        "Rounded shell",
+        "Low horizontal chassis with top ventilation.",
+        "Top grille",
+      ],
+      cooling: [
+        "Thermal plate",
+        "Supports compact thermal operation.",
+        "Thermal path",
+      ],
+      board: [
+        "Compact mainboard",
+        "Coordinates internal device connectivity.",
+        "Internal I/O",
+      ],
+      cpu: ["Processor", "Runs computing workloads.", "Processor"],
+      memory: ["SO-DIMM RAM", "Supports active sessions.", "SO-DIMM"],
+      storage: [
+        "NVMe storage",
+        "Provides responsive system storage.",
+        "M.2 NVMe",
+      ],
+      rear: [
+        "Rear I/O",
+        "Supported display and network connections.",
+        "Display / network I/O",
+      ],
+      power: ["Power input", "Feeds the compact system.", "DC input"],
+    },
+  },
+  {
+    id: "stick",
+    name: "Compute Stick",
+    kind: "HDMI COMPUTE MODULE",
+    photos: ["/exploded/monitor-stick.png", "/showcase/complete-system.png"],
+    parts: ["shell", "rear", "board", "cpu", "memory", "storage", "power"],
+    copy: "Slim black HDMI compute module with compact integrated architecture.",
+    info: {
+      shell: [
+        "Outer shell",
+        "Protects the compact compute-stick format.",
+        "Slim body",
+      ],
+      rear: ["HDMI connector", "Direct display connection.", "HDMI male"],
+      board: [
+        "Logic board",
+        "Coordinates embedded functions.",
+        "Embedded board",
+      ],
+      cpu: ["Processor module", "Runs the compact PC workload.", "Processor"],
+      memory: [
+        "Memory package",
+        "Supports the operating environment.",
+        "Integrated memory",
+      ],
+      storage: [
+        "Storage package",
+        "Stores operating system and configuration.",
+        "Embedded storage",
+      ],
+      power: ["Power management", "Regulates device power.", "Power section"],
+    },
+  },
+  {
+    id: "tower",
+    name: "Tower Desktop",
+    kind: "ENTERPRISE TOWER WORKSTATION",
+    photos: [
+      "/legacy/tower-desktop/1.jpg",
+      "/legacy/tower-desktop/2.jpg",
+      "/legacy/tower-desktop/4.jpg",
+    ],
+    parts: [
+      "shell",
+      "front",
+      "cooling",
+      "board",
+      "cpu",
+      "memory",
+      "storage",
+      "rear",
+      "power",
+    ],
+    copy: "Black enterprise tower with lower-front branding, front I/O and serviceable airflow.",
+    info: {
+      shell: [
+        "Side panel & tower shell",
+        "Protects components and forms the service access path.",
+        "Ventilated side panel",
+      ],
+      front: [
+        "Front I/O",
+        "Provides power and peripheral access.",
+        "Power, USB, audio",
+      ],
+      cooling: [
+        "Case airflow",
+        "Moves air through the tower.",
+        "Case fan path",
+      ],
+      board: [
+        "Desktop mainboard",
+        "Main platform for workstation components.",
+        "Expansion capable",
+      ],
+      cpu: ["CPU & cooler", "Processes desktop workloads.", "CPU cooler"],
+      memory: [
+        "Desktop memory",
+        "Supports applications and multitasking.",
+        "DIMM",
+      ],
+      storage: ["Storage bay", "Holds configured storage.", "SSD / HDD bay"],
+      rear: [
+        "Rear I/O",
+        "Connects peripherals and display paths.",
+        "I/O, configurable slot",
+      ],
+      power: ["Power supply", "Supplies regulated system power.", "PSU"],
+    },
+  },
+  {
+    id: "monitor",
+    name: "Monitor System",
+    kind: "MONITOR + COMPUTE STICK",
+    photos: [
+      "/legacy/all-in-one/1.jpg",
+      "/exploded/monitor-stick.png",
+      "/legacy/all-in-one/3.jpg",
+    ],
+    parts: ["display", "rear", "stand", "base", "shell"],
+    copy: "Slim monitor system with VESA mounting area, stand and compute-stick context.",
+    info: {
+      display: [
+        "Display panel",
+        "Primary viewing surface for the workstation.",
+        "Display panel",
+      ],
+      rear: [
+        "VESA mount & display I/O",
+        "Provides mounting and supported signal paths.",
+        "VESA plate / I/O",
+      ],
+      stand: [
+        "Stand & cable management",
+        "Supports ergonomic placement.",
+        "Stand neck",
+      ],
+      base: ["Monitor base", "Provides stable support.", "Base"],
+      shell: [
+        "Compute stick",
+        "Adds a compact PC module behind the display.",
+        "HDMI compute stick",
+      ],
+    },
+  },
+  {
+    id: "kiosk",
+    name: "Interactive Kiosk",
+    kind: "PUBLIC INFORMATION KIOSK",
+    photos: [
+      "/showcase/interactive-kiosk.png",
+      "/legacy/kiosks-display/1.jpg",
+      "/exploded/interactive-kiosk.png",
+    ],
+    parts: ["display", "front", "board", "rear", "stand", "base"],
+    structural: true,
+    copy: "White portrait kiosk with a tilted touch display, service access, pedestal and wheeled base.",
+    info: {
+      display: [
+        "Touch display module",
+        "Responsive public-facing interaction surface.",
+        "Touch display",
+      ],
+      front: [
+        "Front bezel",
+        "Frames and protects the touch display.",
+        "Metal bezel",
+      ],
+      board: [
+        "Mini PC compartment",
+        "Runs approved kiosk content and services.",
+        "Mini PC space",
+      ],
+      rear: [
+        "Service access panel",
+        "Supports maintained access and cable routing.",
+        "Access panel",
+      ],
+      stand: [
+        "Pedestal channel",
+        "Routes the internal structural path below the display.",
+        "Pedestal",
+      ],
+      base: [
+        "Wheeled base",
+        "Supports stable mobile positioning.",
+        "Lockable casters",
+      ],
+    },
+  },
+  {
+    id: "cart",
+    name: "Mobile Cart",
+    kind: "MOBILE COMPUTING WORKSTATION",
+    photos: ["/exploded/mobile-stand.png", "/exploded/av-stand.png"],
+    parts: ["rear", "drawer", "stand", "base", "shell"],
+    structural: true,
+    copy: "Mobile workstation with VESA plate, lockable drawer, shelves, rails and lockable casters.",
+    info: {
+      rear: [
+        "VESA mounting plate",
+        "Secures a display with standard patterns.",
+        "VESA plate",
+      ],
+      drawer: [
+        "Lockable device drawer",
+        "Keeps devices, cabling and accessories secure.",
+        "Lock and handle",
+      ],
+      shell: [
+        "Accessory shelves",
+        "Support computing equipment and peripherals.",
+        "Adjustable shelves",
+      ],
+      stand: [
+        "Aluminium support rails",
+        "Provide a rigid structural core and cable route.",
+        "Support rails",
+      ],
+      base: [
+        "Caster base",
+        "Makes the workstation mobile and lockable.",
+        "Lockable casters",
+      ],
+    },
+  },
 ];
-
-export default function ThinClientLab(){
-  const [explode,setExplode]=useState(false),[xray,setXray]=useState(false),[selected,setSelected]=useState<PartKey | null>(null),[resetKey,setResetKey]=useState(0),[full,setFull]=useState(false);
-  const panel=selected?inspection[selected]:null;
-  const reset=useCallback(()=>{setExplode(false);setXray(false);setSelected(null);setResetKey(v=>v+1)},[]);
-  return <main className="lab-page"><section className={"lab-stage "+(full?"lab-full":"")} aria-label="Interactive AnuTek Thin Client product model"><div className="lab-intro"><span>ANUTEK PRODUCT LAB / THIN CLIENT</span><h1>Enterprise hardware,<br/><em>made visible.</em></h1><p>Inspect a representative Thin Client architecture, its interfaces and the environments it supports.</p></div><Canvas dpr={[1,1.6]} camera={{position:[4.8,2.7,5.2],fov:42}} shadows><Scene explode={explode} xray={xray} selected={selected} onSelect={setSelected} resetKey={resetKey}/></Canvas><div className="lab-controls" aria-label="Live hardware inspection controls"><div><ScanSearch size={17}/><b>Live hardware inspection</b></div><button onClick={()=>setExplode(v=>!v)} aria-pressed={explode}><Rotate3D/> {explode?"Assemble":"Explode"}</button><button onClick={()=>setXray(v=>!v)} aria-pressed={xray}><Eye/> X Ray</button><button onClick={reset}><RotateCcw/> Reset</button><button onClick={()=>setFull(v=>!v)} aria-label={full?"Exit full screen":"Full screen"}>{full?<X/>:<Expand/>}</button></div>{explode&&<div className="lab-hotspots" aria-label="Component hotspots">{partOrder.map((key,i)=><button className={selected===key?"active":""} onClick={()=>setSelected(key)} key={key} aria-label={`Inspect ${inspection[key].name}`}><i>{String(i+1).padStart(2,"0")}</i><span>{inspection[key].name}</span></button>)}</div>}{panel&&<aside className="lab-panel"><button aria-label="Close component information" onClick={()=>setSelected(null)}><X/></button><span>COMPONENT {String(partOrder.indexOf(selected!)+1).padStart(2,"0")}</span><h2>{panel.name}</h2><p>{panel.purpose}</p><dl><div><dt>Visible / typical interfaces</dt><dd>{panel.interfaces}</dd></div><div><dt>Enterprise relevance</dt><dd>{panel.relevance}</dd></div></dl></aside>}<p className="lab-disclaimer">Illustrative internal architecture <span>•</span> Final internal configuration varies by approved project specification.</p></section><section className="lab-evidence"><div className="lab-section-heading"><span>PRODUCT EVIDENCE</span><h2>Captured Product Views</h2><p>Original approved product photographs remain the factual reference.</p></div><div className="evidence-strip">{photos.map((src,i)=><figure key={src}><img src={src} alt={["Front Thin Client view","Rear I/O Thin Client view","Side Thin Client view"][i]}/><figcaption>{["Front controls","Rear I/O","Slim side profile"][i]}</figcaption></figure>)}</div><p className="evidence-note">A full 360 degree image sequence or approved CAD model can be integrated when available.</p></section><section className="lab-deployments" id="deployments"><div className="lab-section-heading"><span>DEPLOYMENT CONTEXTS</span><h2>Built for considered environments.</h2></div><div>{deployments.map(([title,src,copy])=><article key={title}><img src={src} alt={title}/><h3>{title}</h3><p>{copy}</p></article>)}</div></section></main>
+const C = {
+  black: "#10161a",
+  dark: "#05080a",
+  green: "#9acb1d",
+  board: "#1e6746",
+  metal: "#9eabb1",
+  white: "#dde3e2",
+};
+function Label({
+  children,
+  p,
+  r = [0, 0, 0],
+  s = 0.22,
+}: {
+  children: string;
+  p: [number, number, number];
+  r?: [number, number, number];
+  s?: number;
+}) {
+  return (
+    <Text
+      position={p}
+      rotation={r}
+      fontSize={s}
+      color="#eff8ef"
+      anchorX="center"
+      anchorY="middle"
+    >
+      {children}
+    </Text>
+  );
+}
+function Port({
+  p,
+  c = "#111827",
+  s = [0.25, 0.13, 0.04],
+}: {
+  p: [number, number, number];
+  c?: string;
+  s?: [number, number, number];
+}) {
+  return (
+    <mesh position={p}>
+      <boxGeometry args={s} />
+      <meshStandardMaterial color={c} metalness={0.7} roughness={0.28} />
+    </mesh>
+  );
+}
+function Slots({
+  p,
+  n = 8,
+  v = false,
+}: {
+  p: [number, number, number];
+  n?: number;
+  v?: boolean;
+}) {
+  return (
+    <group position={p}>
+      {Array.from({ length: n }, (_, i) => (
+        <mesh
+          key={i}
+          position={
+            v
+              ? [0, (i - (n - 1) / 2) * 0.14, 0]
+              : [(i - (n - 1) / 2) * 0.14, 0, 0]
+          }
+        >
+          <boxGeometry args={v ? [0.04, 0.09, 0.04] : [0.09, 0.04, 0.04]} />
+          <meshBasicMaterial color="#030506" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+function ProductMesh({
+  product,
+  explode,
+  xray,
+  selected,
+  onPart,
+}: {
+  product: Product;
+  explode: boolean;
+  xray: boolean;
+  selected: K | null;
+  onPart: (x: K) => void;
+}) {
+  const refs = useRef<Partial<Record<K, THREE.Group>>>({});
+  const part = (k: K, c: React.ReactNode) => (
+    <group
+      key={k}
+      ref={(e) => {
+        refs.current[k] = e || undefined;
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onPart(k);
+      }}
+    >
+      {c}
+    </group>
+  );
+  useEffect(() => {
+    product.parts.forEach((k, i) => {
+      const n = refs.current[k];
+      if (!n) return;
+      const d = product.structural ? 1.05 : 0.72;
+      const pos = explode
+        ? [
+            ((i % 3) - 1) * d,
+            (Math.floor(i / 3) - 1) * d * 0.92,
+            i % 2 ? 0.48 : -0.48,
+          ]
+        : [0, 0, 0];
+      gsap.to(n.position, {
+        x: pos[0],
+        y: pos[1],
+        z: pos[2],
+        duration: 0.72,
+        ease: "power3.inOut",
+        overwrite: true,
+      });
+    });
+  }, [explode, product]);
+  const mat = (k: K, c: string) => (
+    <meshStandardMaterial
+      color={c}
+      metalness={0.65}
+      roughness={0.3}
+      transparent={xray && ["shell", "front"].includes(k)}
+      opacity={xray && ["shell", "front"].includes(k) ? 0.18 : 1}
+      emissive={selected === k ? "#078ac4" : "#000"}
+      emissiveIntensity={selected === k ? 0.5 : 0}
+    />
+  );
+  if (product.id === "thin")
+    return (
+      <group rotation={[0.04, -0.55, 0]}>
+        {part(
+          "shell",
+          <>
+            <RoundedBox args={[1.55, 3.35, 0.68]} radius={0.12}>
+              {mat("shell", C.black)}
+            </RoundedBox>
+            <mesh position={[0.79, 0, 0.02]}>
+              <boxGeometry args={[0.035, 3.1, 0.5]} />
+              {mat("shell", C.green)}
+            </mesh>
+            <Slots p={[0, 1.27, 0.36]} />
+            <Slots p={[-0.79, 0, 0]} n={11} v />
+          </>,
+        )}
+        {part(
+          "front",
+          <group position={[0, 0, 0.39]}>
+            <RoundedBox args={[1.28, 2.84, 0.08]} radius={0.06}>
+              {mat("front", C.dark)}
+            </RoundedBox>
+            <mesh position={[0, 1.07, 0.06]}>
+              <cylinderGeometry args={[0.16, 0.16, 0.03, 24]} />
+              {mat("front", C.black)}
+            </mesh>
+            <Port p={[0, 0.35, 0.06]} />
+            <Port p={[0, -0.58, 0.06]} />
+            <Label p={[0, -1.06, 0.08]}>AnuTek</Label>
+          </group>,
+        )}
+        {part(
+          "board",
+          <mesh>
+            <boxGeometry args={[1.1, 2.3, 0.08]} />
+            {mat("board", C.board)}
+          </mesh>,
+        )}
+        {part(
+          "cooling",
+          <mesh position={[-0.15, 0.55, 0.14]}>
+            <boxGeometry args={[0.65, 0.62, 0.14]} />
+            {mat("cooling", "#26343a")}
+          </mesh>,
+        )}
+        {part(
+          "cpu",
+          <mesh position={[-0.15, 0.55, 0.25]}>
+            <boxGeometry args={[0.4, 0.4, 0.11]} />
+            {mat("cpu", "#b79a5c")}
+          </mesh>,
+        )}
+        {part(
+          "memory",
+          <mesh position={[0.4, 0.4, 0.17]}>
+            <boxGeometry args={[0.2, 0.85, 0.08]} />
+            {mat("memory", "#2f8a50")}
+          </mesh>,
+        )}
+        {part(
+          "storage",
+          <mesh position={[0.35, -0.55, 0.17]}>
+            <boxGeometry args={[0.18, 0.7, 0.07]} />
+            {mat("storage", "#367f55")}
+          </mesh>,
+        )}
+        {part(
+          "rear",
+          <group position={[0, 0, -0.39]} rotation={[0, Math.PI, 0]}>
+            <RoundedBox args={[1.3, 2.85, 0.08]} radius={0.05}>
+              {mat("rear", C.dark)}
+            </RoundedBox>
+            <Port p={[-0.36, 0.74, 0.06]} s={[0.35, 0.22, 0.03]} c="#197bc0" />
+            <Port p={[0.35, 0.73, 0.06]} s={[0.32, 0.22, 0.03]} c="#1a5597" />
+            <Port p={[-0.35, 0.15, 0.06]} c="#245a9e" />
+            <Port p={[0.35, 0.15, 0.06]} c="#175b42" />
+          </group>,
+        )}
+        {part(
+          "power",
+          <mesh position={[0, -1.06, -0.43]}>
+            <cylinderGeometry args={[0.12, 0.12, 0.07, 20]} />
+            {mat("power", C.black)}
+          </mesh>,
+        )}
+      </group>
+    );
+  if (product.id === "mini")
+    return (
+      <group rotation={[0.36, -0.6, 0]}>
+        {part(
+          "shell",
+          <>
+            <RoundedBox args={[2.8, 0.55, 2.35]} radius={0.2}>
+              {mat("shell", C.black)}
+            </RoundedBox>
+            <Slots p={[0, 0.3, 0]} n={12} />
+            <Label p={[0, 0.3, 0.72]} r={[-Math.PI / 2, 0, 0]} s={0.28}>
+              AnuTek
+            </Label>
+          </>,
+        )}
+        {part(
+          "board",
+          <mesh position={[0, 0.12, 0]}>
+            <boxGeometry args={[2.35, 0.08, 1.9]} />
+            {mat("board", C.board)}
+          </mesh>,
+        )}
+        {part(
+          "cooling",
+          <mesh position={[-0.5, 0.24, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry
+              args={[0.5, 0.5, 0.14, 24]}
+            />
+            {mat("cooling", C.dark)}
+          </mesh>,
+        )}
+        {part(
+          "cpu",
+          <mesh position={[-0.5, 0.33, 0]}>
+            <boxGeometry args={[0.55, 0.1, 0.55]} />
+            {mat("cpu", "#b79a5c")}
+          </mesh>,
+        )}
+        {part(
+          "memory",
+          <mesh position={[0.65, 0.25, 0]}>
+            <boxGeometry args={[0.28, 0.08, 1.1]} />
+            {mat("memory", "#2f8a50")}
+          </mesh>,
+        )}
+        {part(
+          "storage",
+          <mesh position={[0.65, 0.25, 0.65]}>
+            <boxGeometry args={[0.24, 0.07, 0.8]} />
+            {mat("storage", "#367f55")}
+          </mesh>,
+        )}
+        {part(
+          "rear",
+          <group position={[0, 0, -1.23]}>
+            <Port p={[-0.7, 0, 0.02]} c="#1a5597" />
+            <Port p={[0, 0, 0.02]} c="#1a5597" />
+            <Port p={[0.7, 0, 0.02]} c="#175b42" />
+          </group>,
+        )}
+        {part(
+          "power",
+          <mesh position={[1.05, 0, -1.23]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry
+              args={[0.12, 0.12, 0.08, 20]}
+            />
+            {mat("power", C.dark)}
+          </mesh>,
+        )}
+      </group>
+    );
+  if (product.id === "stick")
+    return (
+      <group rotation={[0.08, -0.5, 0]}>
+        {part(
+          "shell",
+          <>
+            <RoundedBox args={[0.72, 3.1, 0.42]} radius={0.14}>
+              {mat("shell", C.black)}
+            </RoundedBox>
+            <Label p={[0, 0.3, 0.23]}>AnuTek</Label>
+            <Label p={[0, -0.45, 0.23]} s={0.11}>
+              intel inside
+            </Label>
+          </>,
+        )}
+        {part(
+          "rear",
+          <mesh position={[0, 1.83, 0]}>
+            <boxGeometry args={[0.47, 0.65, 0.22]} />
+            {mat("rear", "#bfc6c8")}
+          </mesh>,
+        )}
+        {part(
+          "board",
+          <mesh position={[0, 0, 0.08]}>
+            <boxGeometry args={[0.5, 2.1, 0.05]} />
+            {mat("board", C.board)}
+          </mesh>,
+        )}
+        {part(
+          "cpu",
+          <mesh position={[0, 0.3, 0.14]}>
+            <boxGeometry args={[0.34, 0.34, 0.08]} />
+            {mat("cpu", "#b79a5c")}
+          </mesh>,
+        )}
+        {part(
+          "memory",
+          <mesh position={[0, -0.2, 0.14]}>
+            <boxGeometry args={[0.4, 0.48, 0.07]} />
+            {mat("memory", "#2f8a50")}
+          </mesh>,
+        )}
+        {part(
+          "storage",
+          <mesh position={[0, -0.75, 0.14]}>
+            <boxGeometry args={[0.4, 0.48, 0.07]} />
+            {mat("storage", "#367f55")}
+          </mesh>,
+        )}
+        {part(
+          "power",
+          <mesh position={[0, -1.35, 0.14]}>
+            <boxGeometry args={[0.4, 0.28, 0.08]} />
+            {mat("power", C.dark)}
+          </mesh>,
+        )}
+      </group>
+    );
+  if (product.id === "tower")
+    return (
+      <group rotation={[0.05, -0.6, 0]}>
+        {part(
+          "shell",
+          <>
+            <RoundedBox args={[2.2, 3.7, 1.75]} radius={0.12}>
+              {mat("shell", C.black)}
+            </RoundedBox>
+            <Slots p={[-1.12, 0, 0]} n={15} v />
+            <Label p={[0, -1.35, 0.9]}>AnuTek</Label>
+          </>,
+        )}
+        {part(
+          "front",
+          <group position={[0, 0, 0.92]}>
+            <mesh position={[0, 1.12, 0.05]}>
+              <cylinderGeometry args={[0.18, 0.18, 0.05, 24]} />
+              {mat("front", C.dark)}
+            </mesh>
+            <Port p={[-0.38, 0.45, 0.07]} />
+            <Port p={[0.38, 0.45, 0.07]} />
+            <Slots p={[0, -0.2, 0.07]} />
+          </group>,
+        )}
+        {part(
+          "board",
+          <mesh position={[-0.15, 0, 0.15]}>
+            <boxGeometry args={[1.5, 2.45, 0.1]} />
+            {mat("board", C.board)}
+          </mesh>,
+        )}
+        {part(
+          "cooling",
+          <mesh position={[-0.35, 0.6, 0.3]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry
+              args={[0.42, 0.42, 0.16, 20]}
+            />
+            {mat("cooling", C.dark)}
+          </mesh>,
+        )}
+        {part(
+          "cpu",
+          <mesh position={[-0.35, 0.6, 0.41]}>
+            <boxGeometry args={[0.52, 0.52, 0.1]} />
+            {mat("cpu", "#b79a5c")}
+          </mesh>,
+        )}
+        {part(
+          "memory",
+          <mesh position={[0.45, 0.45, 0.32]}>
+            <boxGeometry args={[0.2, 1.0, 0.1]} />
+            {mat("memory", "#2f8a50")}
+          </mesh>,
+        )}
+        {part(
+          "storage",
+          <mesh position={[0.45, -0.65, 0.32]}>
+            <boxGeometry args={[0.65, 0.48, 0.15]} />
+            {mat("storage", "#367f55")}
+          </mesh>,
+        )}
+        {part(
+          "rear",
+          <mesh position={[0, 0, -0.92]}>
+            <boxGeometry args={[1.45, 1.2, 0.1]} />
+            {mat("rear", C.dark)}
+          </mesh>,
+        )}
+        {part(
+          "power",
+          <mesh position={[0.45, -1.18, 0.2]}>
+            <boxGeometry args={[0.8, 0.65, 0.42]} />
+            {mat("power", C.dark)}
+          </mesh>,
+        )}
+      </group>
+    );
+  if (product.id === "monitor")
+    return (
+      <group rotation={[0.06, -0.5, 0]}>
+        {part(
+          "display",
+          <group>
+            <RoundedBox args={[4.2, 2.45, 0.16]} radius={0.08}>
+              {mat("display", C.dark)}
+            </RoundedBox>
+            <mesh position={[0, 0, 0.1]}>
+              <planeGeometry args={[3.9, 2.15]} />
+              <meshStandardMaterial
+                color="#173f5f"
+                emissive="#0b496f"
+                emissiveIntensity={0.55}
+              />
+            </mesh>
+            <Label p={[0, -1.02, 0.12]}>AnuTek</Label>
+          </group>,
+        )}
+        {part(
+          "rear",
+          <mesh position={[0, 0, -0.16]}>
+            <boxGeometry args={[1.3, 0.8, 0.12]} />
+            {mat("rear", C.metal)}
+          </mesh>,
+        )}
+        {part(
+          "shell",
+          <group position={[1.4, 0, -0.29]}>
+            <RoundedBox args={[0.43, 1.5, 0.25]} radius={0.08}>
+              {mat("shell", C.black)}
+            </RoundedBox>
+            <Label p={[0, 0.1, 0.14]} s={0.12}>
+              AnuTek
+            </Label>
+          </group>,
+        )}
+        {part(
+          "stand",
+          <mesh position={[0, -1.7, 0]}>
+            <boxGeometry args={[0.35, 1.0, 0.45]} />
+            {mat("stand", C.black)}
+          </mesh>,
+        )}
+        {part(
+          "base",
+          <mesh position={[0, -2.25, 0]}>
+            <boxGeometry args={[2.15, 0.18, 1.1]} />
+            {mat("base", C.black)}
+          </mesh>,
+        )}
+      </group>
+    );
+  const kiosk = product.id === "kiosk";
+  return (
+    <group rotation={[0, -0.45, 0]}>
+      {part(
+        "display",
+        <group position={[0, 2.15, 0.15]} rotation={[-0.18, 0, 0]}>
+          <RoundedBox args={[3.2, 1.9, 0.25]} radius={0.1}>
+            {mat("display", C.white)}
+          </RoundedBox>
+          <mesh position={[0, 0, 0.14]}>
+            <planeGeometry args={[2.75, 1.48]} />
+            <meshStandardMaterial
+              color="#162b3b"
+              emissive="#0c4662"
+              emissiveIntensity={0.35}
+            />
+          </mesh>
+          <Label p={[0, 0.62, 0.16]} s={0.17}>
+            AnuTek
+          </Label>
+        </group>,
+      )}
+      {part(
+        "front",
+        kiosk ? (
+          <mesh position={[0, 0.25, 0.1]}>
+            <boxGeometry args={[1.1, 2.8, 0.7]} />
+            {mat("front", C.white)}
+          </mesh>
+        ) : (
+          <mesh position={[0, 1.9, 0]}>
+            <boxGeometry args={[1.5, 0.12, 0.75]} />
+            {mat("front", C.metal)}
+          </mesh>
+        ),
+      )}
+      {part(
+        "drawer",
+        product.id === "cart" ? (
+          <group position={[0, 0.75, 0.34]}>
+            <mesh>
+              <boxGeometry args={[2.0, 0.45, 0.65]} />
+              {mat("drawer", C.white)}
+            </mesh>
+            <Label p={[0, 0, 0.36]} s={0.15}>
+              AnuTek
+            </Label>
+          </group>
+        ) : (
+          <mesh position={[0, 0.2, 0.5]}>
+            <boxGeometry args={[0.9, 0.55, 0.12]} />
+            {mat("drawer", C.dark)}
+          </mesh>
+        ),
+      )}
+      {part(
+        "board",
+        kiosk ? (
+          <mesh position={[0, 0.55, -0.25]}>
+            <boxGeometry args={[0.55, 0.8, 0.25]} />
+            {mat("board", C.dark)}
+          </mesh>
+        ) : (
+          <mesh position={[0, 0.1, 0.1]}>
+            <boxGeometry args={[1.65, 0.12, 0.75]} />
+            {mat("board", C.white)}
+          </mesh>
+        ),
+      )}
+      {part(
+        "rear",
+        product.id === "cart" ? (
+          <mesh position={[0, 3.05, 0]}>
+            <boxGeometry args={[1.5, 0.12, 0.75]} />
+            {mat("rear", C.metal)}
+          </mesh>
+        ) : (
+          <mesh position={[-0.7, 0.5, -0.1]}>
+            <boxGeometry args={[0.14, 2.8, 0.3]} />
+            {mat("rear", C.metal)}
+          </mesh>
+        ),
+      )}
+      {part(
+        "stand",
+        <>
+          <mesh position={[0, 0.1, -0.1]}>
+            <boxGeometry args={[0.38, 3.8, 0.35]} />
+            {mat("stand", C.metal)}
+          </mesh>
+          {product.id === "cart" && (
+            <mesh position={[0.32, 0.1, -0.1]}>
+              <boxGeometry args={[0.15, 3.8, 0.35]} />
+              {mat("stand", C.metal)}
+            </mesh>
+          )}
+        </>,
+      )}
+      {part(
+        "base",
+        <group position={[0, -1.75, 0]}>
+          <mesh>
+            <boxGeometry args={[2.5, 0.25, 1.55]} />
+            {mat("base", C.black)}
+          </mesh>
+          {[
+            [-0.9, -0.5],
+            [0.9, -0.5],
+            [-0.9, 0.5],
+            [0.9, 0.5],
+          ].map((q, i) => (
+            <mesh key={i} position={[q[0], -0.25, q[1]]}>
+              <cylinderGeometry args={[0.22, 0.22, 0.18, 16]} />
+              {mat("base", C.black)}
+            </mesh>
+          ))}
+        </group>,
+      )}
+    </group>
+  );
+}
+function Scene(p: {
+  product: Product;
+  explode: boolean;
+  xray: boolean;
+  selected: K | null;
+  onPart: (x: K) => void;
+}) {
+  const { gl } = useThree();
+  useEffect(() => {
+    gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.45));
+  }, [gl]);
+  return (
+    <>
+      <color attach="background" args={["#071016"]} />
+      <ambientLight intensity={0.58} />
+      <directionalLight position={[4, 5, 3]} intensity={1.7} color="#d0ecff" />
+      <pointLight
+        position={[-4, 2, 2]}
+        intensity={10}
+        color="#0d84ba"
+        distance={9}
+      />
+      <pointLight
+        position={[3, -2, 2]}
+        intensity={4}
+        color="#a2ce2a"
+        distance={6}
+      />
+      <ProductMesh {...p} />
+      <gridHelper
+        args={[16, 24, "#1e6076", "#102934"]}
+        position={[0, -2.75, 0]}
+      />
+      <ContactShadows
+        position={[0, -2.72, 0]}
+        opacity={0.55}
+        scale={8}
+        blur={2.4}
+      />
+      <OrbitControls
+        enablePan={false}
+        minDistance={4}
+        maxDistance={9}
+        enableDamping
+        dampingFactor={0.08}
+      />
+      <Environment preset="city" />
+    </>
+  );
+}
+export default function ThinClientLab() {
+  const [id, setId] = useState("thin"),
+    [explode, setExplode] = useState(false),
+    [xray, setXray] = useState(false),
+    [selected, setSelected] = useState<K | null>(null),
+    [full, setFull] = useState(false);
+  const product = products.find((p) => p.id === id)!;
+  const info = selected ? product.info[selected] : null;
+  return (
+    <main className="lab-page">
+      <section className={"lab-stage " + (full ? "lab-full" : "")}>
+        <div className="lab-intro">
+          <span>ANUTEK PRODUCT LAB / {product.kind}</span>
+          <h1>
+            {product.name}
+            <br />
+            <em>made visible.</em>
+          </h1>
+          <p>{product.copy}</p>
+        </div>
+        <Canvas
+          dpr={[1, 1.45]}
+          camera={{ position: [4.8, 2.7, 5.2], fov: 42 }}
+          fallback={
+            <div className="lab-fallback">
+              <img src={product.photos[0]} alt={`${product.name} reference`} />
+            </div>
+          }
+        >
+          <Scene
+            product={product}
+            explode={explode}
+            xray={xray}
+            selected={selected}
+            onPart={setSelected}
+          />
+        </Canvas>
+        <div className="lab-selector" aria-label="Select product model">
+          {products.map((p) => (
+            <button
+              key={p.id}
+              aria-pressed={p.id === id}
+              onClick={() => {
+                setId(p.id);
+                setExplode(false);
+                setXray(false);
+                setSelected(null);
+              }}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <div className="lab-controls">
+          <div>
+            <ScanSearch size={17} />
+            <b>Live hardware inspection</b>
+          </div>
+          <button onClick={() => setExplode((v) => !v)} aria-pressed={explode}>
+            <Rotate3D />
+            {explode ? "Reassemble" : "Explode"}
+          </button>
+          <button onClick={() => setXray((v) => !v)} aria-pressed={xray}>
+            <Eye />X Ray
+          </button>
+          <button
+            onClick={() => {
+              setExplode(false);
+              setXray(false);
+              setSelected(null);
+            }}
+          >
+            <RotateCcw />
+            Reset
+          </button>
+          <button
+            onClick={() => setFull((v) => !v)}
+            aria-label={full ? "Exit full screen" : "Full screen"}
+          >
+            {full ? <X /> : <Expand />}
+          </button>
+        </div>
+        {explode && (
+          <div className="lab-hotspots">
+            {product.parts.map((k, i) => (
+              <button
+                key={k}
+                className={selected === k ? "active" : ""}
+                onClick={() => setSelected(k)}
+              >
+                <i>{String(i + 1).padStart(2, "0")}</i>
+                <span>{product.info[k]?.[0] || k}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {info && (
+          <aside className="lab-panel">
+            <button
+              onClick={() => setSelected(null)}
+              aria-label="Close component information"
+            >
+              <X />
+            </button>
+            <span>
+              COMPONENT /{" "}
+              {String(product.parts.indexOf(selected!) + 1).padStart(2, "0")}
+            </span>
+            <h2>{info[0]}</h2>
+            <p>{info[1]}</p>
+            <dl>
+              <div>
+                <dt>Visible / typical interfaces</dt>
+                <dd>{info[2]}</dd>
+              </div>
+              <div>
+                <dt>Enterprise relevance</dt>
+                <dd>
+                  {product.structural
+                    ? "Supports a maintainable, serviceable deployment."
+                    : "Supports reliable, managed endpoint operation."}
+                </dd>
+              </div>
+            </dl>
+          </aside>
+        )}
+        <p className="lab-disclaimer">
+          {product.structural
+            ? "Illustrative structural breakdown"
+            : "Illustrative internal architecture"}
+          <span>•</span>
+          {product.structural
+            ? "Final structural configuration varies by approved project specification."
+            : "Final internal configuration varies by approved project specification."}
+        </p>
+      </section>
+      <section className="lab-evidence">
+        <div className="lab-section-heading">
+          <span>PRODUCT EVIDENCE</span>
+          <h2>Captured Product Views</h2>
+          <p>
+            Original approved product photographs remain the factual reference
+            for the selected model.
+          </p>
+        </div>
+        <div className="evidence-strip">
+          {product.photos.map((src, i) => (
+            <figure key={src}>
+              <img src={src} alt={`${product.name} captured view ${i + 1}`} />
+              <figcaption>
+                {product.name} / captured view {String(i + 1).padStart(2, "0")}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+        <p className="evidence-note">
+          A full 360 degree image sequence or approved CAD model can be
+          integrated when available.
+        </p>
+      </section>
+    </main>
+  );
 }
