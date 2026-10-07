@@ -331,10 +331,15 @@ const products: Product[] = [
     name: "Mobile Cart",
     kind: "MOBILE COMPUTING WORKSTATION",
     photos: ["/exploded/mobile-stand.png", "/exploded/av-stand.png"],
-    parts: ["rear", "drawer", "stand", "base", "shell"],
+    parts: ["display", "rear", "drawer", "shell", "stand", "base"],
     structural: true,
     copy: "Mobile workstation with VESA plate, lockable drawer, shelves, rails and lockable casters.",
     info: {
+      display: [
+        "Display mounting arm",
+        "Positions the display on the mobile workstation.",
+        "Display mount",
+      ],
       rear: [
         "VESA mounting plate",
         "Secures a display with standard patterns.",
@@ -904,6 +909,19 @@ function ProductMesh({
           </mesh>
         ),
       )}
+      {product.id === "cart" && part(
+        "shell",
+        <group>
+          <mesh position={[0, 0.05, 0.08]}>
+            <boxGeometry args={[1.7, 0.12, 0.75]} />
+            {mat("shell", C.white)}
+          </mesh>
+          <mesh position={[0, -0.92, 0.08]}>
+            <boxGeometry args={[1.7, 0.12, 0.75]} />
+            {mat("shell", C.white)}
+          </mesh>
+        </group>,
+      )}
       {part(
         "board",
         kiosk ? (
@@ -998,7 +1016,7 @@ function Scene(p: {
         color="#a2ce2a"
         distance={6}
       />
-      <ProductMesh {...p} />
+      <ProductMesh key={p.product.id} {...p} />
       <gridHelper
         args={[16, 24, "#1e6076", "#102934"]}
         position={[0, -2.75, 0]}
