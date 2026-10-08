@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import ThinClientLab from "../../../components/ThinClientLab";
+import { Header } from "../../AnutekSite";
 
 export const metadata: Metadata = {
   title: "Thin Client Product Lab | AnuTek Solutions",
@@ -7,4 +8,4 @@ export const metadata: Metadata = {
   alternates: { canonical: "/product-lab/thin-client" },
 };
 
-export default function ThinClientProductLabPage() { return <ThinClientLab/>; }
+export default function ThinClientProductLabPage() { return <><Header/><ThinClientLab/></>; }

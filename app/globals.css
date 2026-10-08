@@ -38,3 +38,11 @@
   .lab-selector{left:12px;right:12px;top:auto;bottom:84px;max-width:none;justify-content:center;max-height:78px;overflow:auto}.lab-selector button{font-size:9px;padding:7px}
   .lab-intro .watch-film{margin:15px 0 0}.clone-hero-copy{padding:58px 8% 24px}.clone-hero{min-height:auto}.clone-hero-art{min-height:300px}.clone-hero-art img{height:280px}.clone-products{padding:70px 6%}
 }
+@media(max-width:800px){
+  .lab-page>.lab-stage{grid-template-rows:auto 450px auto auto}
+  .lab-page>.lab-stage>div[style]{height:450px!important}
+  .lab-page>.lab-stage canvas{height:450px!important}
+  .lab-page>.lab-stage .lab-selector{position:relative;inset:auto;grid-row:3;max-height:none;overflow:visible;padding:14px 12px;background:#071015;border-top:1px solid #24566a}
+  .lab-page>.lab-stage .lab-controls{position:relative;inset:auto;grid-row:4;max-width:none;margin:0 12px 16px;justify-content:center}
+  .lab-page>.lab-stage .lab-hotspots{bottom:164px}
+}
