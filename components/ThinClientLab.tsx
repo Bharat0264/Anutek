@@ -1077,7 +1077,7 @@ export default function ThinClientLab({
   const product = products.find((p) => p.id === id)!;
   const info = selected ? product.info[selected] : null;
   const spec = detailSlug ? productSpecs[detailSlug] : undefined;
-  const filmKey: Record<string, string> = { mini: "mini-pc", stick: "compute-stick", monitor: "all-in-one", cart: "mobile-cart" };
+  const filmKey: Record<string, string> = { mini: "mini-pc", stick: "compute-stick", monitor: "all-in-one", kiosk: "kiosk", cart: "mobile-cart" };
   const isScene = !detail || tab === "3d" || tab === "exploded";
   const activeExplode = detail ? tab === "exploded" : explode;
   return (
