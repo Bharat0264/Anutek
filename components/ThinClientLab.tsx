@@ -12,6 +12,8 @@ import { gsap } from "gsap";
 import { Expand, Eye, Rotate3D, RotateCcw, ScanSearch, X } from "lucide-react";
 import * as THREE from "three";
 import { productSpecs } from "../data/productSpecs";
+import { productVideos } from "../data/productVideos";
+import ProductFilm from "./ProductFilm";
 type K =
   | "shell"
   | "front"
@@ -1075,6 +1077,7 @@ export default function ThinClientLab({
   const product = products.find((p) => p.id === id)!;
   const info = selected ? product.info[selected] : null;
   const spec = detailSlug ? productSpecs[detailSlug] : undefined;
+  const filmKey: Record<string, string> = { thin: "thin-client", stick: "compute-stick", monitor: "all-in-one", cart: "mobile-cart" };
   const isScene = !detail || tab === "3d" || tab === "exploded";
   const activeExplode = detail ? tab === "exploded" : explode;
   return (
@@ -1091,6 +1094,7 @@ export default function ThinClientLab({
             <em>made visible.</em>
           </h1>
           <p>{product.copy}</p>
+          {!detail && productVideos[filmKey[product.id]] && <ProductFilm film={productVideos[filmKey[product.id]]}/>} 
         </div>
         <Canvas
           dpr={[1, 1.45]}
