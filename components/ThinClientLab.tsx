@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { Expand, Eye, Rotate3D, RotateCcw, ScanSearch, X } from "lucide-react";
 import * as THREE from "three";
+import { productSpecs } from "../data/productSpecs";
 type K =
   | "shell"
   | "front"
@@ -994,11 +995,16 @@ function Scene(p: {
   xray: boolean;
   selected: K | null;
   onPart: (x: K) => void;
+  resetToken: number;
 }) {
   const { gl } = useThree();
+  const controls = useRef<any>(null);
   useEffect(() => {
     gl.setPixelRatio(Math.min(window.devicePixelRatio, 1.45));
   }, [gl]);
+  useEffect(() => {
+    controls.current?.reset();
+  }, [p.resetToken]);
   return (
     <>
       <color attach="background" args={["#071016"]} />
@@ -1028,27 +1034,55 @@ function Scene(p: {
         blur={2.4}
       />
       <OrbitControls
+        ref={controls}
         enablePan={false}
         minDistance={4}
         maxDistance={9}
         enableDamping
         dampingFactor={0.08}
+        autoRotate={!p.explode}
+        autoRotateSpeed={0.45}
       />
       <Environment preset="city" />
     </>
   );
 }
-export default function ThinClientLab() {
-  const [id, setId] = useState("thin"),
+export default function ThinClientLab({
+  productId,
+  detailSlug,
+  detail = false,
+}: {
+  productId?: string;
+  detailSlug?: string;
+  detail?: boolean;
+}) {
+  const [id, setId] = useState(productId || "thin"),
     [explode, setExplode] = useState(false),
     [xray, setXray] = useState(false),
     [selected, setSelected] = useState<K | null>(null),
-    [full, setFull] = useState(false);
+    [full, setFull] = useState(false),
+    [resetToken, setResetToken] = useState(0),
+    [tab, setTab] = useState<"3d" | "exploded" | "photos" | "specs">("3d");
+  const stageRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (productId) setId(productId);
+  }, [productId]);
+  useEffect(() => {
+    const syncFullScreen = () => setFull(document.fullscreenElement === stageRef.current);
+    document.addEventListener("fullscreenchange", syncFullScreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullScreen);
+  }, []);
   const product = products.find((p) => p.id === id)!;
   const info = selected ? product.info[selected] : null;
+  const spec = detailSlug ? productSpecs[detailSlug] : undefined;
+  const isScene = !detail || tab === "3d" || tab === "exploded";
+  const activeExplode = detail ? tab === "exploded" : explode;
   return (
-    <main className="lab-page">
-      <section className={"lab-stage " + (full ? "lab-full" : "")}>
+    <main className={"lab-page " + (detail ? "lab-detail-page" : "")}>
+      {detail && <div className="detail-lab-tabs" role="tablist" aria-label="Product media views">
+        {[["3d", "3D View"], ["exploded", "Exploded View"], ["photos", "Photo Views"], ["specs", "Technical Specifications"]].map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={tab === value ? "active" : ""} onClick={() => { setTab(value as typeof tab); setSelected(null); }}>{label}</button>)}
+      </div>}
+      {isScene && <section ref={stageRef} className={"lab-stage " + (full ? "lab-full" : "")}>
         <div className="lab-intro">
           <span>ANUTEK PRODUCT LAB / {product.kind}</span>
           <h1>
@@ -1069,13 +1103,14 @@ export default function ThinClientLab() {
         >
           <Scene
             product={product}
-            explode={explode}
+            explode={activeExplode}
             xray={xray}
             selected={selected}
             onPart={setSelected}
+            resetToken={resetToken}
           />
         </Canvas>
-        <div className="lab-selector" aria-label="Select product model">
+        {!detail && <div className="lab-selector" aria-label="Select product model">
           {products.map((p) => (
             <button
               key={p.id}
@@ -1090,15 +1125,15 @@ export default function ThinClientLab() {
               {p.name}
             </button>
           ))}
-        </div>
+        </div>}
         <div className="lab-controls">
           <div>
             <ScanSearch size={17} />
             <b>Live hardware inspection</b>
           </div>
-          <button onClick={() => setExplode((v) => !v)} aria-pressed={explode}>
+          <button onClick={() => detail ? setTab(tab === "exploded" ? "3d" : "exploded") : setExplode((v) => !v)} aria-pressed={activeExplode}>
             <Rotate3D />
-            {explode ? "Reassemble" : "Explode"}
+            {activeExplode ? "Reassemble" : "Explode"}
           </button>
           <button onClick={() => setXray((v) => !v)} aria-pressed={xray}>
             <Eye />X Ray
@@ -1108,19 +1143,24 @@ export default function ThinClientLab() {
               setExplode(false);
               setXray(false);
               setSelected(null);
+              setTab("3d");
+              setResetToken((v) => v + 1);
             }}
           >
             <RotateCcw />
             Reset
           </button>
           <button
-            onClick={() => setFull((v) => !v)}
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else stageRef.current?.requestFullscreen();
+            }}
             aria-label={full ? "Exit full screen" : "Full screen"}
           >
             {full ? <X /> : <Expand />}
           </button>
         </div>
-        {explode && (
+        {activeExplode && (
           <div className="lab-hotspots">
             {product.parts.map((k, i) => (
               <button
@@ -1173,8 +1213,8 @@ export default function ThinClientLab() {
             ? "Final structural configuration varies by approved project specification."
             : "Final internal configuration varies by approved project specification."}
         </p>
-      </section>
-      <section className="lab-evidence">
+      </section>}
+      {(!detail || tab === "photos") && <section className="lab-evidence">
         <div className="lab-section-heading">
           <span>PRODUCT EVIDENCE</span>
           <h2>Captured Product Views</h2>
@@ -1197,7 +1237,8 @@ export default function ThinClientLab() {
           A full 360 degree image sequence or approved CAD model can be
           integrated when available.
         </p>
-      </section>
+      </section>}
+      {detail && tab === "specs" && spec && <section className="detail-specifications" aria-label="Technical specifications"><div><span>TECHNICAL SPECIFICATIONS</span><h2>{product.name} configuration overview</h2><p>Published product details are shown for evaluation. Final configuration is determined by the approved project specification.</p></div><div className="spec-table-wrap"><table><thead><tr><th>Feature</th>{spec.models.map((model) => <th key={model}>{model}</th>)}</tr></thead><tbody>{spec.rows.map(([feature, values]) => <tr key={feature}><th>{feature}</th>{values.map((value, index) => <td key={spec.models[index]}>{value}</td>)}</tr>)}</tbody></table></div></section>}
     </main>
   );
 }
