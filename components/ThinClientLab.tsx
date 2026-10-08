@@ -1238,7 +1238,7 @@ export default function ThinClientLab({
           integrated when available.
         </p>
       </section>}
-      {detail && tab === "specs" && spec && <section className="detail-specifications" aria-label="Technical specifications"><div><span>TECHNICAL SPECIFICATIONS</span><h2>{product.name} configuration overview</h2><p>Published product details are shown for evaluation. Final configuration is determined by the approved project specification.</p></div><div className="spec-table-wrap"><table><thead><tr><th>Feature</th>{spec.models.map((model) => <th key={model}>{model}</th>)}</tr></thead><tbody>{spec.rows.map(([feature, values]) => <tr key={feature}><th>{feature}</th>{values.map((value, index) => <td key={spec.models[index]}>{value}</td>)}</tr>)}</tbody></table></div></section>}
+      {detail && tab === "specs" && <section className="detail-specifications" aria-label="Technical specifications"><div><span>TECHNICAL SPECIFICATIONS</span><h2>{product.name} configuration overview</h2><p>{spec ? "Published product details are shown for evaluation. Final configuration is determined by the approved project specification." : "Detailed technical specifications are configured for each approved project. Contact AnuTek for a suitable deployment configuration."}</p></div>{spec && <div className="spec-table-wrap"><table><thead><tr><th>Feature</th>{spec.models.map((model) => <th key={model}>{model}</th>)}</tr></thead><tbody>{spec.rows.map(([feature, values]) => <tr key={feature}><th>{feature}</th>{values.map((value, index) => <td key={spec.models[index]}>{value}</td>)}</tr>)}</tbody></table></div>}</section>}
     </main>
   );
 }
