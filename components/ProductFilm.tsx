@@ -1,16 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 
-type Film = { id: string; title: string; poster: string };
+type Film = { src: string; title: string; poster: string };
 
 export default function ProductFilm({ film }: { film: Film }) {
   const [open, setOpen] = useState(false);
-  const [finale, setFinale] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
-  const close = () => { video.current?.pause(); setOpen(false); setFinale(false); };
+  const close = () => { video.current?.pause(); setOpen(false); };
+  useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") close(); }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, []);
   return <>
     <button className="watch-film" onClick={() => setOpen(true)}><Play size={15} fill="currentColor"/> Watch Product Film</button>
     {open && <div className="film-modal" role="dialog" aria-modal="true" aria-label={`${film.title} product film`}>
@@ -18,11 +17,10 @@ export default function ProductFilm({ film }: { film: Film }) {
       <div className="film-panel">
         <button className="film-close" onClick={close} aria-label="Close product film"><X/></button>
         <div className="film-frame">
-          <video ref={video} controls autoPlay preload="metadata" poster={film.poster} onTimeUpdate={(event) => setFinale(event.currentTarget.currentTime >= 8)} onEnded={() => setFinale(true)}>
-            <source src={`/product-films/${film.id}.mp4`} type="video/mp4"/>
+          <video ref={video} controls autoPlay muted={false} preload="none" poster={film.poster}>
+            <source src={film.src} type="video/mp4"/>
           </video>
           <div className="film-title"><b>ANUTEK / {film.title}</b><span>PRODUCT FILM · 10 SEC</span></div>
-          {finale && <div className="film-finale"><b>ANUTEK</b><strong>{film.title}</strong><p>Enterprise hardware, made visible.</p><Link href="/contact">Enquire now</Link></div>}
         </div>
       </div>
     </div>}
